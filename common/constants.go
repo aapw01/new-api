@@ -114,6 +114,18 @@ var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
 
+// RequestDetailLogEnabled controls whether the full (sanitized) request/response
+// bodies are captured and stored. Defaults to false for privacy/storage safety.
+var RequestDetailLogEnabled = false
+
+// RequestDetailMaxBytes caps the size of each stored body (after sanitization).
+// Bodies larger than this are truncated with a marker.
+var RequestDetailMaxBytes = 1024 * 1024 // 1 MiB
+
+// RequestDetailMediaMaxBytes caps the size of a single externalized media blob.
+// Media larger than this is replaced by a placeholder but not stored.
+var RequestDetailMediaMaxBytes = 10 * 1024 * 1024 // 10 MiB
+
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 

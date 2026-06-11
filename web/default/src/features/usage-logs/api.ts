@@ -25,6 +25,7 @@ import type {
   GetLogStatsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  RequestDetailData,
   UserInfo,
 } from './types'
 
@@ -87,6 +88,33 @@ export async function getUserInfo(
   userId: number
 ): Promise<{ success: boolean; message?: string; data?: UserInfo }> {
   const res = await api.get(`/api/user/${userId}`)
+  return res.data
+}
+
+// ============================================================================
+// Request/Response Detail APIs (admin only)
+// ============================================================================
+
+export async function getRequestDetail(
+  requestId: string
+): Promise<{ success: boolean; message?: string; data?: RequestDetailData }> {
+  const res = await api.get(
+    `/api/log/detail?request_id=${encodeURIComponent(requestId)}`,
+    { skipBusinessError: true }
+  )
+  return res.data
+}
+
+export async function getRequestMediaBlob(
+  requestId: string,
+  mediaId: string
+): Promise<Blob> {
+  const res = await api.get(
+    `/api/log/detail/media?request_id=${encodeURIComponent(
+      requestId
+    )}&media_id=${encodeURIComponent(mediaId)}`,
+    { responseType: 'blob', skipBusinessError: true }
+  )
   return res.data
 }
 

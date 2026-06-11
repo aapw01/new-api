@@ -1,5 +1,17 @@
 {
   "translation": {
+    "View Full Request Log": "Посмотреть полный журнал запроса",
+    "Full Request Log": "Полный журнал запроса",
+    "View the complete request and response payload for this call": "Просмотреть полные данные запроса и ответа для этого вызова",
+    "Truncated": "Усечено",
+    "No content": "Нет содержимого",
+    "Failed to load media": "Не удалось загрузить медиа",
+    "Media": "Медиа",
+    "Request detail not found": "Детали запроса не найдены",
+    "Failed to load request detail": "Не удалось загрузить детали запроса",
+    "No full request log recorded for this call": "Для этого вызова полный журнал запроса не записан",
+    "Record full request/response logs": "Записывать полные журналы запросов/ответов",
+    "Store the complete request and response bodies (including prompts) for admin review. Inline media is extracted and large bodies are truncated. This significantly increases storage usage.": "Сохраняет полные тела запроса и ответа (включая подсказки) для проверки администратором. Встроенные медиа извлекаются, а большие тела усекаются. Это значительно увеличивает использование хранилища.",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

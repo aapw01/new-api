@@ -1,5 +1,17 @@
 {
   "translation": {
+    "View Full Request Log": "Xem nhật ký yêu cầu đầy đủ",
+    "Full Request Log": "Nhật ký yêu cầu đầy đủ",
+    "View the complete request and response payload for this call": "Xem toàn bộ nội dung yêu cầu và phản hồi của lệnh gọi này",
+    "Truncated": "Đã cắt bớt",
+    "No content": "Không có nội dung",
+    "Failed to load media": "Không tải được phương tiện",
+    "Media": "Phương tiện",
+    "Request detail not found": "Không tìm thấy chi tiết yêu cầu",
+    "Failed to load request detail": "Không tải được chi tiết yêu cầu",
+    "No full request log recorded for this call": "Không có nhật ký yêu cầu đầy đủ được ghi cho lệnh gọi này",
+    "Record full request/response logs": "Ghi lại nhật ký yêu cầu/phản hồi đầy đủ",
+    "Store the complete request and response bodies (including prompts) for admin review. Inline media is extracted and large bodies are truncated. This significantly increases storage usage.": "Lưu toàn bộ nội dung yêu cầu và phản hồi (bao gồm cả lời nhắc) để quản trị viên xem xét. Phương tiện nội tuyến được tách riêng và nội dung lớn sẽ bị cắt bớt. Điều này làm tăng đáng kể dung lượng lưu trữ.",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

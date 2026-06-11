@@ -281,6 +281,8 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&RequestDetail{},
+		&RequestMedia{},
 	)
 	if err != nil {
 		return err
@@ -330,6 +332,8 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&RequestDetail{}, "RequestDetail"},
+		{&RequestMedia{}, "RequestMedia"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -369,7 +373,7 @@ func migrateDBFast() error {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &RequestDetail{}, &RequestMedia{}); err != nil {
 		return err
 	}
 	return nil

@@ -1,5 +1,17 @@
 {
   "translation": {
+    "View Full Request Log": "查看完整请求日志",
+    "Full Request Log": "完整请求日志",
+    "View the complete request and response payload for this call": "查看本次调用的完整请求与响应内容",
+    "Truncated": "已截断",
+    "No content": "暂无内容",
+    "Failed to load media": "加载媒体失败",
+    "Media": "媒体",
+    "Request detail not found": "未找到请求详情",
+    "Failed to load request detail": "加载请求详情失败",
+    "No full request log recorded for this call": "此次调用未记录完整请求日志",
+    "Record full request/response logs": "记录完整请求/响应日志",
+    "Store the complete request and response bodies (including prompts) for admin review. Inline media is extracted and large bodies are truncated. This significantly increases storage usage.": "存储完整的请求与响应正文（含提示词）以供管理员查看。内联媒体会被单独提取，超大正文会被截断。开启后会显著增加存储占用。",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

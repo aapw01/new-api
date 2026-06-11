@@ -164,6 +164,10 @@ func DeleteHistoryLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// Clean up full request/response details alongside logs, using the same cutoff.
+	if _, rdErr := model.DeleteOldRequestDetail(c.Request.Context(), targetTimestamp, 100); rdErr != nil {
+		common.SysError("failed to delete old request details: " + rdErr.Error())
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

@@ -16,6 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Copy,
   Check,
@@ -29,6 +32,9 @@ import {
   ShieldCheck,
   UserCog,
   Info,
+  FileText,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -41,6 +47,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { RequestPayloadDialog } from './request-payload-dialog'
+import { getRequestDetail } from '../../api'
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
@@ -395,6 +403,31 @@ interface DetailsDialogProps {
 export function DetailsDialog(props: DetailsDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
+  const queryClient = useQueryClient()
+  const [payloadOpen, setPayloadOpen] = useState(false)
+  const [checkingPayload, setCheckingPayload] = useState(false)
+
+  const handleOpenPayload = async () => {
+    const requestId = props.log.request_id
+    if (!requestId || checkingPayload) return
+    setCheckingPayload(true)
+    try {
+      const res = await queryClient.fetchQuery({
+        queryKey: ['request-detail', requestId],
+        queryFn: () => getRequestDetail(requestId),
+        staleTime: 30_000,
+      })
+      if (res.success && res.data) {
+        setPayloadOpen(true)
+      } else {
+        toast.info(t('No full request log recorded for this call'))
+      }
+    } catch {
+      toast.error(t('Failed to load request detail'))
+    } finally {
+      setCheckingPayload(false)
+    }
+  }
   const details = props.log.content ?? ''
   const other = parseLogOther(props.log.other)
   const typeConfig = getLogTypeConfig(props.log.type)
@@ -479,12 +512,20 @@ export function DetailsDialog(props: DetailsDialogProps) {
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
 
   return (
-    <Dialog
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      title={
-        <>
-          {t('Log Details')}
+    <>
+      {props.log.request_id && (
+        <RequestPayloadDialog
+          requestId={props.log.request_id}
+          open={payloadOpen}
+          onOpenChange={setPayloadOpen}
+        />
+      )}
+      <Dialog
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        title={
+          <>
+            {t('Log Details')}
           <StatusBadge
             label={t(typeConfig.label)}
             variant={typeConfig.color as StatusBadgeProps['variant']}
@@ -516,6 +557,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 mono
               />
             )}
+
             {props.log.upstream_request_id && (
               <DetailRow
                 label={t('Upstream Request ID')}
@@ -609,6 +651,35 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 }
               />
             )}
+            {props.isAdmin &&
+              props.log.request_id &&
+              (isConsume || props.log.type === 5) && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={handleOpenPayload}
+                  disabled={checkingPayload}
+                  className='mt-1 h-9 w-full justify-between gap-2 text-xs font-normal'
+                >
+                  <span className='flex min-w-0 items-center gap-1.5'>
+                    <FileText className='size-3.5 shrink-0' aria-hidden='true' />
+                    <span className='truncate'>
+                      {t('View Full Request Log')}
+                    </span>
+                  </span>
+                  {checkingPayload ? (
+                    <Loader2
+                      className='size-3.5 shrink-0 animate-spin opacity-70'
+                      aria-hidden='true'
+                    />
+                  ) : (
+                    <ChevronRight
+                      className='size-3.5 shrink-0 opacity-50'
+                      aria-hidden='true'
+                    />
+                  )}
+                </Button>
+              )}
           </div>
 
           {/* Request conversion (admin only, not for refund) */}
@@ -1034,7 +1105,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
           )}
         </div>
       </ScrollArea>
-    </Dialog>
+      </Dialog>
+    </>
   )
 }
 

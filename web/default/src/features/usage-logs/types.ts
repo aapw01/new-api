@@ -360,3 +360,36 @@ export interface UserInfo {
   aff_quota?: number
   remark?: string
 }
+
+// ============================================================================
+// Request/Response Detail Types (full log viewer)
+// ============================================================================
+
+export interface RequestMediaMeta {
+  id: number
+  request_id: string
+  media_id: string
+  sha256: string
+  mime_type: string
+  size: number
+  role: string
+  created_at: number
+}
+
+export interface RequestDetailData {
+  id: number
+  request_id: string
+  user_id: number
+  created_at: number
+  endpoint: string
+  model_name: string
+  channel_id: number
+  token_id: number
+  status_code: number
+  is_stream: boolean
+  request_body: string
+  response_body: string
+  request_truncated: boolean
+  response_truncated: boolean
+  media: RequestMediaMeta[] | null
+}

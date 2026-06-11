@@ -48,6 +48,9 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap["RequestDetailLogEnabled"] = strconv.FormatBool(common.RequestDetailLogEnabled)
+	common.OptionMap["RequestDetailMaxBytes"] = strconv.Itoa(common.RequestDetailMaxBytes)
+	common.OptionMap["RequestDetailMediaMaxBytes"] = strconv.Itoa(common.RequestDetailMediaMaxBytes)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -306,6 +309,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case "RequestDetailLogEnabled":
+			common.RequestDetailLogEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS
@@ -514,6 +519,14 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
+	case "RequestDetailMaxBytes":
+		if v, e := strconv.Atoi(value); e == nil && v > 0 {
+			common.RequestDetailMaxBytes = v
+		}
+	case "RequestDetailMediaMaxBytes":
+		if v, e := strconv.Atoi(value); e == nil && v > 0 {
+			common.RequestDetailMediaMaxBytes = v
+		}
 	case "DataExportInterval":
 		common.DataExportInterval, _ = strconv.Atoi(value)
 	case "DataExportDefaultTime":
