@@ -409,6 +409,17 @@ func runLogCleanupTask(ctx context.Context, task *model.SystemTask, runnerID str
 		}
 	}
 
+	for {
+		rowsAffected, err := model.DeleteOldRequestDetailBatch(ctx, payload.TargetTimestamp, payload.BatchSize)
+		if err != nil {
+			failSystemTask(task, runnerID, err)
+			return
+		}
+		if rowsAffected == 0 {
+			break
+		}
+	}
+
 	state.Remaining = 0
 	state.Progress = 100
 	if state.Total < state.Processed {

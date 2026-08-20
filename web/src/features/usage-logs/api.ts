@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { buildQueryParams } from './lib/utils'
 import type {
   GetLogsParams,
   GetLogsResponse,
@@ -26,12 +25,25 @@ import type {
   GetLogStatsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  RequestDetailData,
   UserInfo,
 } from './types'
 
 // ============================================================================
 // Generic API Helpers
 // ============================================================================
+
+function buildQueryParams(params: Record<string, unknown>): URLSearchParams {
+  const queryParams = new URLSearchParams()
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, String(value))
+    }
+  })
+
+  return queryParams
+}
 
 function buildApiPath(endpoint: string, isAdmin: boolean): string {
   return isAdmin ? endpoint : `${endpoint}/self`
@@ -88,6 +100,32 @@ export async function getUserInfo(
   userId: number
 ): Promise<{ success: boolean; message?: string; data?: UserInfo }> {
   const res = await api.get(`/api/user/${userId}`)
+  return res.data
+}
+
+// ============================================================================
+// Request/Response Detail APIs (admin only)
+// ============================================================================
+
+export async function getRequestDetail(
+  requestId: string
+): Promise<{ success: boolean; message?: string; data?: RequestDetailData }> {
+  const res = await api.get('/api/log/detail', {
+    params: { request_id: requestId },
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function getRequestMediaBlob(
+  requestId: string,
+  mediaId: string
+): Promise<Blob> {
+  const res = await api.get('/api/log/detail/media', {
+    params: { request_id: requestId, media_id: mediaId },
+    responseType: 'blob',
+    skipBusinessError: true,
+  })
   return res.data
 }
 

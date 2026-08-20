@@ -1,0 +1,71 @@
+# Personal fork-only image build. Pushes to your own GHCR
+# (ghcr.io/<owner>/new-api). Do NOT include this file in any PR to upstream.
+name: My Docker Build
+
+on:
+  # Every push on any branch builds an image tagged with that branch name.
+  push:
+    branches:
+      - '**'
+  # Manual run: pick any branch OR tag from the "Run workflow" ref selector.
+  workflow_dispatch:
+
+# Only keep the latest run per ref; cancel superseded builds.
+concurrency:
+  group: my-docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Compute image tags & version
+        id: meta
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"          # GHCR requires lowercase
+          IMAGE="ghcr.io/${OWNER}/new-api"
+          REF="${GITHUB_REF_NAME}"                      # branch or tag short name
+          SAFE_REF=$(echo "$REF" | sed 's#[^a-zA-Z0-9._-]#-#g')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION="${SAFE_REF}-${SHORT_SHA}"
+          echo "$VERSION" > VERSION
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:${SAFE_REF}"
+            echo "${IMAGE}:${SAFE_REF}-${SHORT_SHA}"
+            echo "EOF"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building ${IMAGE}:${SAFE_REF} (${VERSION})"
+
+      - name: Set up QEMU (cross-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
