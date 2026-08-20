@@ -3,7 +3,7 @@
 > 范围：**仅"日志记录"这一个需求**（AI 成本雷达 P0 数据采集层）。
 > 不含：多维归因、浪费识别、优化建议（P1/P2/P3）。
 > 关联需求文档：`docs/features/ai-cost-radar.md`
-> 分支：`feature/ai-cost-radar`
+> 状态：**已实现并合入 `custom`**
 
 ---
 
@@ -29,7 +29,7 @@
 | 默认开关 | 默认关闭 |
 | 媒体上限 / 去重 | 单条默认 ~10MB（超限只存占位符）+ `sha256` 去重 |
 | 接口鉴权 | 服务端 `AdminAuth()` 强制，非仅前端 |
-| TTL | 跟随主日志清理（`DeleteHistoryLogs` 联动） |
+| TTL | 跟随 `log_cleanup` 系统任务联动清理 |
 
 ---
 
@@ -43,8 +43,8 @@
 | relay 路由 | `router/relay-router.go`：`relayV1Router`(httpRouter)、`relayGeminiRouter`、`/pg` 等 | 采集中间件挂这些组 |
 | 开关变量 | `common/constants.go`（如 `LogConsumeEnabled`）+ `model/option.go`（`OptionMap` + `updateOptionMap` switch） | 仿此新增 `RequestDetailLogEnabled` 等 |
 | 鉴权 | `middleware.AdminAuth()`（`middleware/auth.go:176`），`logRoute` 已全挂（`router/api-router.go:307+`） | 新接口同样挂 |
-| 日志清理 | `controller/log.go` `DeleteHistoryLogs` → `model.DeleteOldLog`（管理员手动按 `target_timestamp`） | 联动删新表 |
-| 前端日志页 | `web/default/src/features/usage-logs`；`DetailsDialog`（`components/dialogs/details-dialog.tsx`）在 `common-logs-columns.tsx:814` 渲染 | 在 `DetailsDialog` 内加按钮 |
+| 日志清理 | `service/system_task.go` 的 `log_cleanup` 系统任务 | 日志清理后联动删新表 |
+| 前端日志页 | `web/src/features/usage-logs`；`DetailsDialog`（`components/dialogs/details-dialog.tsx`） | 在 `DetailsDialog` 内加按钮 |
 | JSON 高亮 | `components/ai-elements/code-block.tsx`（基于 `shiki`） | 弹窗内复用 |
 | API 封装 | `features/usage-logs/api.ts` + 统一 `@/lib/api`（axios）+ React Query | 新增 `getRequestDetail` |
 
@@ -219,16 +219,16 @@ func (w *captureWriter) Flush() { w.ResponseWriter.Flush() }
 ### 6.3 路由注册（`router/api-router.go`，logRoute 组）
 ```go
 logRoute.GET("/detail", middleware.AdminAuth(), controller.GetRequestDetail)
-logRoute.GET("/detail/media", middleware.AdminAuth(), controller.GetRequestDetailMedia)
+logRoute.GET("/detail/media", middleware.AdminAuth(), controller.GetRequestMedia)
 ```
 
 ---
 
 ## 7. 清理联动
 
-在 `controller/log.go` 的 `DeleteHistoryLogs`（删 `logs` 时）按同一 `target_timestamp` 联动：
-- `model.DeleteOldRequestDetail(ctx, targetTimestamp, limit)`：删 `request_details` 与 `request_media`（`created_at < target_timestamp`，分批）。
-- 与现有 `DeleteOldLog` 一致的分批删除模式。
+在 `service/system_task.go` 的 `log_cleanup` 任务中按同一 `target_timestamp` 联动：
+- `model.DeleteOldRequestDetailBatch(ctx, targetTimestamp, limit)`：分批删除 `request_details` 与 `request_media`（`created_at < target_timestamp`）。
+- 与 `DeleteOldLogBatch` 使用相同的批量大小和取消上下文。
 
 > P0 不引入独立自动 TTL；如需自动化，后续可加定时任务，不在本次范围。
 
@@ -240,7 +240,7 @@ logRoute.GET("/detail/media", middleware.AdminAuth(), controller.GetRequestDetai
 |------|------|------|------|
 | `RequestDetailLogEnabled` | `common/constants.go` + `model/option.go` | `false` | 总开关 |
 | `RequestDetailMediaMaxBytes` | 同上 | ~10MB | 单条媒体上限，超限只存占位符 |
-| `RequestDetailBodyMaxBytes` | 同上 | ~16MB | 响应抄录/正文上限，超限截断标记 |
+| `RequestDetailMaxBytes` | 同上 | 1MB | 每侧正文/响应抄录上限，超限截断标记 |
 
 - `model/option.go`：在 `InitOptionMap` 写入 `OptionMap`，并在 `updateOptionMap` 的 `switch` 增加对应 `case` 解析回写全局变量（参考 `LogConsumeEnabled`）。
 - 前端运营设置页加开关与上限输入（含数据量/隐私提示文案，走 i18n）。
@@ -275,7 +275,7 @@ export const getRequestDetail = (requestId: string) =>
 ## 10. 性能与安全
 
 - **性能**：抄录在内存缓冲（有上限）；落库走 `gopool.Go` 异步；正文/列表查询**禁止 `SELECT *` 带 `data` 列**（PG TOAST 已外置大字段，独立表进一步隔离）。
-- **内存**：响应抄录有 `RequestDetailBodyMaxBytes` 上限；媒体外置后正文小。
+- **内存**：响应抄录有 `RequestDetailMaxBytes` 上限；媒体外置后正文小。
 - **安全**：完整正文/媒体含敏感 prompt → 路由 `AdminAuth()` + 控制器二次校验；无 `/self`；验收须用非管理员 token 验证 403。
 - **SSE 兼容**：包装器透传 `Flush()`/`Hijack()`，充分测试流式不被破坏。
 
@@ -296,12 +296,12 @@ export const getRequestDetail = (requestId: string) =>
 > 建议先后端地基跑通，再接前端。每步可独立验证。
 
 ### 阶段一：后端数据层
-1. **新增模型** `model/request_detail.go`：`RequestDetail`、`RequestMedia` 结构 + `DeleteOldRequestDetail`。
+1. **新增模型** `model/request_detail.go`：`RequestDetail`、`RequestMedia` 结构 + `DeleteOldRequestDetailBatch`。
 2. **迁移注册**：`model/main.go` 两处 `AutoMigrate` 追加。
 3. **三库迁移验证**：SQLite/MySQL/PG 各跑一次建表（重点验二进制列类型）。
 
 ### 阶段二：开关与配置
-4. `common/constants.go` 增 `RequestDetailLogEnabled` / `RequestDetailMediaMaxBytes` / `RequestDetailBodyMaxBytes`。
+4. `common/constants.go` 增 `RequestDetailLogEnabled` / `RequestDetailMediaMaxBytes` / `RequestDetailMaxBytes`。
 5. `model/option.go`：`OptionMap` 写入 + `switch` 解析回写。
 
 ### 阶段三：媒体清洗器
@@ -313,9 +313,9 @@ export const getRequestDetail = (requestId: string) =>
 9. 验证：开关关闭=零写库；开启=文本/多模态请求正确落库；SSE 与非流式都正确抄录。
 
 ### 阶段五：查询接口与清理
-10. `controller/log.go`（或新建 `controller/request_detail.go`）：`GetRequestDetail`、`GetRequestDetailMedia`（管理员二次校验）。
+10. `controller/request_detail.go`：`GetRequestDetail`、`GetRequestMedia`（管理员二次校验）。
 11. `router/api-router.go`：注册两接口（挂 `AdminAuth()`）。
-12. `controller/log.go` `DeleteHistoryLogs`：联动清理。
+12. `service/system_task.go` 的 `log_cleanup`：联动清理。
 13. 验证：管理员可查回；**非管理员 token 直接调返回 403**；清理联动生效。
 
 ### 阶段六：前端
@@ -339,7 +339,7 @@ export const getRequestDetail = (requestId: string) =>
 - [ ] SSE 流式与非流式均正确抄录，且流式未被破坏（Flush 正常）。
 - [ ] 超大正文/媒体：截断标记 / `oversized` 占位，二进制不入库。
 - [ ] 接口鉴权：非管理员 token 调 `/api/log/detail` 及媒体接口返回 403（服务端生效，非仅前端隐藏）。
-- [ ] 清理：`DeleteHistoryLogs` 联动删除 `request_details` + `request_media`。
+- [x] 清理：`log_cleanup` 系统任务联动删除 `request_details` + `request_media`。
 - [ ] 三库（SQLite/MySQL/PG）迁移与读写全部通过。
 - [ ] 前端：按钮按条件出现，弹窗懒加载、JSON 高亮、Tab 切换、复制、加载/错误态、媒体预览均正常。
 - [ ] 前端 typecheck/lint/format 通过。
@@ -352,7 +352,7 @@ export const getRequestDetail = (requestId: string) =>
 |------|------|
 | 包装 Writer 破坏 SSE | 完整实现 `gin.ResponseWriter`，透传 `Flush`/`Hijack`；流式专项测试 |
 | body storage 生命周期 | 同步拷贝字节后再异步落库；中间件注册在 `BodyStorageCleanup` 之后 |
-| 大响应内存占用 | `RequestDetailBodyMaxBytes` 上限 + 截断标记 |
+| 大响应内存占用 | `RequestDetailMaxBytes` 上限 + 截断标记 |
 | 二进制跨库差异 | `[]byte` 映射 + 按 DB 分支；三库验证 |
 | 存储膨胀 | 默认关 + 媒体去重 + 大小上限 + 清理联动 |
 | 敏感数据泄露 | `AdminAuth()` 服务端强制 + 无 `/self` + 控制器二次校验 |

@@ -3,10 +3,10 @@
 name: My Docker Build
 
 on:
-  # Every push on any branch builds an image tagged with that branch name.
+  # The permanent production branch publishes :custom and :custom-<sha>.
   push:
     branches:
-      - '**'
+      - custom
   # Manual run: pick any branch OR tag from the "Run workflow" ref selector.
   workflow_dispatch:
 

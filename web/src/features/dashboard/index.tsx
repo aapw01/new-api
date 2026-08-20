@@ -113,6 +113,12 @@ const LazyFlowCharts = lazy(() =>
   }))
 )
 
+const LazyAttributionCharts = lazy(() =>
+  import('./components/attribution/attribution-charts').then((m) => ({
+    default: m.AttributionCharts,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -189,6 +195,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   users: {
     titleKey: 'User Analytics',
   },
+  attribution: {
+    titleKey: 'Cost Attribution',
+  },
 }
 
 export function Dashboard() {
@@ -248,7 +257,9 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          ((section !== 'users' && section !== 'attribution') || isAdmin)
       ),
     [isAdmin]
   )
@@ -407,6 +418,13 @@ export function Dashboard() {
                   filters={modelFilters}
                   sensitiveVisible={flowSensitiveVisible}
                 />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'attribution' && isAdmin && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyAttributionCharts />
               </Suspense>
             </FadeIn>
           )}

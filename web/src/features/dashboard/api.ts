@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  AttributionParams,
   FlowQuotaDataItem,
+  GetAttributionResponse,
+  GetAttributionTrendResponse,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -88,6 +91,29 @@ export async function getFlowQuotaDates(
 export async function getUptimeStatus() {
   const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
     '/api/uptime/status'
+  )
+  return res.data
+}
+
+// ----------------------------------------------------------------------------
+// Cost Attribution (admin only)
+// ----------------------------------------------------------------------------
+
+export async function getLogAttribution(
+  params: AttributionParams
+): Promise<GetAttributionResponse> {
+  const res = await api.get<GetAttributionResponse>('/api/log/attribution', {
+    params,
+  })
+  return res.data
+}
+
+export async function getLogAttributionTrend(
+  params: AttributionParams
+): Promise<GetAttributionTrendResponse> {
+  const res = await api.get<GetAttributionTrendResponse>(
+    '/api/log/attribution/trend',
+    { params }
   )
   return res.data
 }

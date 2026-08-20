@@ -1,8 +1,7 @@
-# AI 成本雷达 — 需求文档
+# AI 成本雷达 — 功能说明与路线图
 
-> 状态：**需求评审中（待确认）**
-> 分支：`feature/ai-cost-radar`
-> 本文档用于评审需求细节与范围边界，确认后再进入实现。
+> 状态：**P0 完整日志与 P1 成本归因已实现**
+> 生产分支：`custom`
 
 ---
 
@@ -37,8 +36,8 @@ new-api 现有 `logs` 表已记录调用的**结构化统计字段**，多维归
 
 | 阶段 | 名称 | 内容 | 说明 |
 |------|------|------|------|
-| **P0** | 数据采集层 | 落库完整请求/响应（含 prompt，媒体分离）+ 全局开关 + 查询接口 + 日志页查看弹窗 | **本次范围**，地基 |
-| P1 | 多维归因 | 按 用户/功能/模型/prompt 模板 聚合成本 | 后续 |
+| **P0** | 数据采集层 | 落库完整请求/响应（含 prompt，媒体分离）+ 全局开关 + 查询接口 + 日志页查看弹窗 | **已完成** |
+| **P1** | 多维归因 | 按用户 / 令牌 / 模型聚合成本 | **已完成** |
 | P2 | 浪费识别 | "高成本低价值"打分 | 价值口径待讨论 |
 | P3 | 雷达与建议 | 前端雷达页面 + 优化建议引擎 | 后续 |
 
@@ -66,12 +65,12 @@ new-api 现有 `logs` 表已记录调用的**结构化统计字段**，多维归
 > 以下点会直接影响实现复杂度与数据量，需你确认：
 
 - [x] **存储方式**：（已确认）**方案 B 变体** —— 正文文本进库（媒体替换为占位符引用），**媒体二进制单独存一张表**（PG 用 `bytea`，不引入对象存储依赖）。详见 4.2。
-- [x] **存储位置**：（已确认）正文与媒体均**进数据库**（默认主库，亦可走独立 `LOG_SQL_DSN` 日志库）。
+- [x] **存储位置**：（已确认）正文与媒体均存入**主数据库**。消费日志仍可使用独立日志库；正文不写入 ClickHouse 日志库。
 - [x] **脱敏**：（已确认）本次**暂不脱敏，全量存储**。
 - [x] **捕获范围**：（已确认）**方案 B —— 所有 relay 请求都抓**（含图片/音频/任务类；媒体由分离机制外置，正文保持可读）。
 - [x] **可见范围**：（已确认）完整正文/媒体**仅管理员可见**。
 - [x] **默认开关状态**：（已确认）默认**关闭**，需管理员显式开启。
-- [x] **TTL 策略**：（已确认）**跟随主日志清理** —— 现有数据库日志为「管理员手动按时间点删除」（`DeleteHistoryLogs`，无自动定时）。新表在删 `logs` 时按同一 `created_at < target_timestamp` **联动删除** `request_details` + `request_media`。P0 不引入独立的自动 TTL。
+- [x] **TTL 策略**：（已确认）**跟随日志清理系统任务**。任务先分批清理 `logs`，再按同一 `created_at < target_timestamp` 分批清理 `request_details` + `request_media`。
 - [x] **媒体二进制大小上限**：（已确认）单条媒体上限可配置，默认 ~10MB，超限只存占位符不存二进制。
 - [x] **媒体去重**：（已确认）按 `sha256` 去重（同一图片/音频重复发送只存一份）。方案 B 全抓下尤为重要。
 - [x] **接口鉴权**：（已确认）查询接口与媒体接口**必须在服务端强制管理员鉴权**（`middleware.AdminAuth()`），**不得仅靠前端隐藏按钮**。详见 4.6。
@@ -132,7 +131,7 @@ new-api 现有 `logs` 表已记录调用的**结构化统计字段**，多维归
 4. **捕获中间件**：在 relay 路由组上包装 `c.Writer`（完整实现 `gin.ResponseWriter` + `http.Flusher`，保证 SSE 不被破坏），请求结束后异步落库。
 5. **兜底截断**：媒体外置后正文仍超长（极端情况）才截断并标记 `truncated`；正常文本永不被截。
 6. **查询接口**：`GET /api/log/detail?request_id=xxx`（正文）+ `GET /api/log/detail/media?media_id=xxx`（媒体二进制，按需）。**两者均在路由上挂 `middleware.AdminAuth()` 强制服务端鉴权**（详见 4.6）。
-7. **TTL 清理**：**跟随主日志清理**。在 `controller/log.go` 的 `DeleteHistoryLogs`（管理员手动按时间点删 `logs`）中，按同一 `target_timestamp` 联动删除 `request_details` + `request_media`（`created_at < target_timestamp`）。新增 `DeleteOldRequestDetail` 配套函数。P0 不引入独立自动 TTL。
+7. **TTL 清理**：接入现有 `log_cleanup` 系统任务。`service/system_task.go` 在日志清理完成后调用 `DeleteOldRequestDetailBatch`，按相同时间边界清理正文与媒体。
 
 ### 4.4 涉及文件（预估）
 - `model/request_detail.go`（新增：正文表 + 媒体表 + 清理）
@@ -142,8 +141,8 @@ new-api 现有 `logs` 表已记录调用的**结构化统计字段**，多维归
 - `middleware/request_detail.go`（新增中间件）
 - `router/relay-router.go`（接入中间件）
 - `controller/`、`router/api-router.go`（查询接口）
-- `controller/log.go`（`DeleteHistoryLogs` 联动清理新表）
-- `web/default/`（前端开关 + 日志详情查看弹窗，见 4.5；必要时同步 `web/classic/`）
+- `service/system_task.go`（`log_cleanup` 任务联动清理新表）
+- `web/src/`（前端开关 + 日志详情查看弹窗，见 4.5）
 
 ### 4.5 前端：完整请求/响应查看弹窗
 
@@ -169,7 +168,7 @@ new-api 现有 `logs` 表已记录调用的**结构化统计字段**，多维归
 - 新增的查询接口与媒体接口**必须在路由上挂 `middleware.AdminAuth()`**，与现有日志接口（`/api/log` 系列已全部使用 `AdminAuth()`）保持一致。
 - 注册位置：现有 `logRoute` 组（`router/api-router.go`），示例：
   - `logRoute.GET("/detail", middleware.AdminAuth(), controller.GetRequestDetail)`
-  - `logRoute.GET("/detail/media", middleware.AdminAuth(), controller.GetRequestDetailMedia)`
+  - `logRoute.GET("/detail/media", middleware.AdminAuth(), controller.GetRequestMedia)`
 - **不提供 `/self` 变体**：普通用户无法查看任何完整正文（即使是自己的），P0 仅管理员可访问。
 - 控制器内同样校验：即便路由配置变更，控制器也应再次确认管理员身份后才返回正文/媒体（纵深防御）。
 - 验收时需**直接用非管理员 token 调接口验证返回 403/无权限**，而非仅检查前端按钮是否隐藏。
@@ -215,7 +214,7 @@ new-api 现有 `logs` 表已记录调用的**结构化统计字段**，多维归
 - 捕获范围：**已确认** —— 方案 B，所有 relay 请求都抓。
 - 可见范围：**已确认** —— 仅管理员。
 - 默认开关：**已确认** —— 默认关闭。
-- TTL 策略：**已确认** —— 跟随主日志清理（`DeleteHistoryLogs` 联动），无独立自动 TTL。
+- TTL 策略：**已确认** —— 跟随 `log_cleanup` 系统任务联动清理，无独立自动 TTL。
 - 媒体大小上限 / 去重：**已确认** —— 单条默认 ~10MB（超限只存占位符）+ `sha256` 去重。
 - 接口鉴权：**已确认** —— 服务端 `AdminAuth()` 强制，不仅前端限制（见 4.6）。
 - 其他：__待定__

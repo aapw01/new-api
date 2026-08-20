@@ -277,6 +277,8 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/detail", middleware.AdminAuth(), controller.GetRequestDetail)
 		logRoute.GET("/detail/media", middleware.AdminAuth(), controller.GetRequestMedia)
+		logRoute.GET("/attribution", middleware.AdminAuth(), controller.GetLogAttribution)
+		logRoute.GET("/attribution/trend", middleware.AdminAuth(), controller.GetLogAttributionTrend)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
